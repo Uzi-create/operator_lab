@@ -127,14 +127,20 @@ def render_result(frame, name, value, context, field=0):
         info.append('SAME-FRAME template demonstration; not a tracking accuracy test')
     if isinstance(value, dict):
         draw_geometry(result, value)
+        if name == 'estimate_translation':
+            info.append('Green arrow: scene/image shift, previous -> current; not a robot trajectory')
+            info.append('Static scene only: camera translation is opposite; rotation/depth need geometry')
         if 'success' in value:
             info.append('DETECTED' if value['success'] else 'NO DETECTION: '+str(value.get('reason', '')))
         for key in ('rms', 'radius', 'width_px', 'height_px', 'response'):
             if value.get(key) is not None: info.append(f'{key}: {float(value[key]):.3f}')
         if name == 'estimate_translation' and value.get('success'):
             shift = value['shift_xy']
-            cv2.arrowedLine(result, (w//2, h//2), xy(np.array((w/2, h/2))+shift), (0, 255, 0), 2)
-            info.append(f'Previous -> current shift: dx={shift[0]:.2f}, dy={shift[1]:.2f} px')
+            if np.hypot(*shift) >= 2:
+                cv2.arrowedLine(result, (w//2, h//2), xy(np.array((w/2, h/2))+shift), (0, 255, 0), 2)
+            else:
+                cv2.circle(result, (w//2, h//2), 3, (0, 255, 0), 1)
+            info.append(f'Processing-image shift: dx={shift[0]:.2f}, dy={shift[1]:.2f} px')
     return result, info
 
 
@@ -143,15 +149,19 @@ def process(frame, previous, name, field=0):
     # cvtColor：OpenCV 转灰度；astype：NumPy 转 float32；/255：亮度缩放到 [0,1]。
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)/255
     context = {}
-    # cases 返回 [(算子名, 实现说明, 待调用函数), ...]。
-    # 这里把列表改成字典。例如 jobs['adaptive'] = ('custom C++', 一个 lambda 函数)。
-    # 创建这些待调用函数不会把 38 项都执行一遍；但 cases 会先计算共享掩码、边缘等输入。
-    jobs = {n: (backend, op) for n, backend, op in check.cases(gray, previous, context)}
-    # 按菜单选中的 name 找到函数。operation 是可调用对象，不是计算结果。
-    backend, operation = jobs[name]
-    # 两个匹配算子要先建立模板。这两行末尾 () 才会执行相应创建函数。
-    if name == 'match_shape': jobs['create_shape_template'][1]()
-    if name == 'locate_planar_template': jobs['create_orb_template'][1]()
+    if name == 'estimate_translation':
+        # 位移只需前后两帧，跳过其他 37 项的掩码、边缘和模板预处理。
+        _, backend, operation = check.scene_motion_case(gray, previous)
+    else:
+        # cases 返回 [(算子名, 实现说明, 待调用函数), ...]。
+        # 这里把列表改成字典。例如 jobs['adaptive'] = ('custom C++', 一个 lambda 函数)。
+        # 创建这些待调用函数不会把 38 项都执行一遍；但 cases 会先计算共享掩码、边缘等输入。
+        jobs = {n: (backend, op) for n, backend, op in check.cases(gray, previous, context)}
+        # 按菜单选中的 name 找到函数。operation 是可调用对象，不是计算结果。
+        backend, operation = jobs[name]
+        # 两个匹配算子要先建立模板。这两行末尾 () 才会执行相应创建函数。
+        if name == 'match_shape': jobs['create_shape_template'][1]()
+        if name == 'locate_planar_template': jobs['create_orb_template'][1]()
     # perf_counter 是 Python 标准库计时函数。
     # 时间只包住当前 operation，未包含上面的准备步骤及下面的绘图。
     begin = perf_counter()
@@ -248,7 +258,7 @@ def main():
     state = {'index': NAMES.index(args.operator), 'field': 0, 'cycling': args.cycle, 'changed': perf_counter(),
              'zoom': 1., 'center': (.5, .5), 'drag': None, 'size': (1260, 760),
              'shapes': [(1080, 1920), (1080, 1920)]}
-    # previous：上一帧灰度图，给 estimate_translation 使用；count：已处理帧数。
+    # previous：上一帧灰度图，给 estimate_translation 使用；首帧为 None。
     title, previous, count, errors = 'Operator Lab | All 38', None, 0, 0
     original_title, show_original = 'Operator Lab | Captured Original', False
     def click(event, x, y, flags, parameter):
@@ -297,7 +307,7 @@ def main():
                 if min(frame.shape[:2]) < 96: raise ValueError('Processing image too small; increase --max-width or use 0')
             # 这份 gray 用于记录上一帧；process 内也会转换当前帧，供各算子使用。
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)/255
-            if previous is None or previous.shape != gray.shape: previous = gray
+            if previous is not None and previous.shape != gray.shape: previous = None
             if state['cycling'] and (perf_counter()-state['changed'] >= 2 or args.headless):
                 state.update(index=(state['index']+1)%len(NAMES), field=0, changed=perf_counter())
             # 菜单序号 -> 算子字符串，例如 name = 'adaptive'。
@@ -314,8 +324,7 @@ def main():
                 result, info, milliseconds, backend = frame.copy(), ['EXECUTION ERROR: '+str(error)], (perf_counter()-begin)*1000, 'No accepted result'
                 status = 'execution_error'
                 errors += 1
-            # 当前帧处理完成后，才更新 previous，避免平移估计拿当前帧和自身比较。
-            # 第一帧没有历史帧，前面会用自身初始化。
+            # 当前帧处理完成后，才更新 previous；首帧或图像尺寸变化时没有有效上一帧。
             previous, count = gray, count+1
             info = [f'Captured: {captured.shape[1]}x{captured.shape[0]}; processing: {frame.shape[1]}x{frame.shape[0]}'] + info
             if count == 1 or args.headless:

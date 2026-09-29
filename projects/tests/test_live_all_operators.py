@@ -1,8 +1,13 @@
 import unittest
 import tempfile
+import re
+import io
+import json
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+import cv2
 import numpy as np
 from projects.camera import live_all_operators as live
 
@@ -58,6 +63,57 @@ class AllOperatorViewerTests(unittest.TestCase):
         result, info = live.render_result(frame, 'measure_circle', value, {})
         self.assertTrue(any('NO DETECTION' in text for text in info))
         self.assertFalse(np.any(np.all(result == (0, 255, 0), axis=2)))
+
+    def test_scene_motion_first_frame_has_no_arrow_or_all_operator_preparation(self):
+        frame = np.zeros((192, 256, 3), np.uint8)
+        with patch.object(live.check, 'cases', side_effect=AssertionError('unrelated preparation ran')):
+            result, info, _, _ = live.process(frame, None, 'estimate_translation')
+        np.testing.assert_array_equal(result, frame)
+        self.assertIn('no_previous_frame', ' '.join(info))
+
+    def test_scene_motion_rejection_never_draws_a_green_arrow(self):
+        frame = np.zeros((192, 256, 3), np.uint8)
+        value = {'success': False, 'reason': 'inconsistent_motion',
+                 'shift_xy': np.array([25., -8.]), 'response': .95}
+        result, info = live.render_result(frame, 'estimate_translation', value, {})
+        np.testing.assert_array_equal(result, frame)
+        self.assertIn('inconsistent_motion', ' '.join(info))
+
+    def test_scene_motion_live_arrow_matches_synthetic_image_shift(self):
+        previous = np.random.default_rng(12).integers(0, 256, (192, 256), dtype=np.uint8)
+        current = cv2.warpAffine(previous, np.float32([[1, 0, 12], [0, 1, -7]]),
+                                 (256, 192), borderMode=cv2.BORDER_CONSTANT)
+        frame = cv2.cvtColor(current, cv2.COLOR_GRAY2BGR)
+        result, info, _, _ = live.process(frame, previous.astype(np.float32)/255,
+                                          'estimate_translation')
+        details = ' '.join(info)
+        self.assertIn('scene/image shift', details)
+        self.assertIn('DETECTED', details)
+        match = re.search(r'dx=([-\d.]+), dy=([-\d.]+)', details)
+        self.assertIsNotNone(match)
+        self.assertAlmostEqual(float(match.group(1)), 12., delta=.5)
+        self.assertAlmostEqual(float(match.group(2)), -7., delta=.5)
+        self.assertTrue(np.any(np.all(result == (0, 255, 0), axis=2)))
+
+    def test_headless_camera_starts_without_a_previous_frame(self):
+        previous = np.random.default_rng(12).integers(0, 256, (192, 256), dtype=np.uint8)
+        current = cv2.warpAffine(previous, np.float32([[1, 0, 12], [0, 1, -7]]),
+                                 (256, 192), borderMode=cv2.BORDER_CONSTANT)
+        cap = MagicMock()
+        cap.isOpened.return_value = True
+        cap.read.side_effect = [(True, cv2.cvtColor(image, cv2.COLOR_GRAY2BGR))
+                                for image in (previous, current)]
+        output = io.StringIO()
+        with patch.object(live.cv2, 'VideoCapture', return_value=cap), \
+             patch.object(live.sys, 'argv', ['live', '--headless', '--frames', '2',
+                                            '--operator', 'estimate_translation']), \
+             redirect_stdout(output):
+            self.assertEqual(live.main(), 0)
+        records = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual(len(records), 2)
+        self.assertIn('no_previous_frame', ' '.join(records[0]['details']))
+        self.assertIn('DETECTED', ' '.join(records[1]['details']))
+        cap.release.assert_called_once()
 
     def test_camera_released_on_read_failure(self):
         cap = MagicMock()

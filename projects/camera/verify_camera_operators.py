@@ -30,10 +30,17 @@ def buffer(image):
     return values
 
 
+def scene_motion_case(gray, previous):
+    """Camera motion entrypoint, also used without other operators' preparation."""
+    return ('estimate_translation', 'OpenCV + NumPy', lambda: measure.estimate_scene_motion(previous, gray)
+            if previous is not None else {'success': False, 'reason': 'no_previous_frame',
+                                          'shift_xy': None, 'response': 0., 'alignment_matrix': None})
+
+
 def cases(gray, previous, context=None):
     """Shared preparation is outside timing. Masks come from this camera image."""
     # 这是“算子登记表”的构造函数，不读取摄像头，也不创建显示窗口。
-    # gray 为当前帧 float32 灰度图；previous 为上一帧；context 用于带出绘图辅助数据。
+    # gray 为当前帧 float32 灰度图；previous 为上一帧（首帧为 None）；context 用于带出绘图辅助数据。
     h, w = gray.shape
     pixels = buffer(gray)
     mask = gray > .5
@@ -87,7 +94,7 @@ def cases(gray, previous, context=None):
         ('measure_rectangle', 'OpenCV + NumPy', lambda: measure_rectangle(gray, (w/2, h/2), (w/2, h/2))),
         ('fit_line', 'NumPy RANSAC', lambda: vision.fit_line(points)),
         ('fit_circle', 'NumPy RANSAC', lambda: vision.fit_circle(points)),
-        ('estimate_translation', 'OpenCV + NumPy', lambda: measure.estimate_translation(previous, gray)),
+        scene_motion_case(gray, previous),
         ('match_template', 'OpenCV + NumPy', lambda: vision.match_template(gray, template, max_matches=1)),
     ]
     # 模板对象保存在 models 中；同一次 cases 创建的闭包共享这个字典。
@@ -157,7 +164,7 @@ def verify_frames(frames, output, save_previews=False):
         cv2.putText(tile, 'Original camera frame', (5, 16), cv2.FONT_HERSHEY_SIMPLEX, .4, (255, 255, 255), 1)
         tiles.append(tile)
     output.mkdir(parents=True, exist_ok=True)
-    previous = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY).astype(np.float32)/255
+    previous = None  # 首帧无历史图像；不能把它与自身配准并报告零位移。
     for index, frame in enumerate(frames):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)/255
         original = gray.copy()

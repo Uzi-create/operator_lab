@@ -6,7 +6,7 @@
 |---|---|
 | `core.py` | 阈值、均值、自适应、引导滤波、CLAHE、形态学、边缘与距离场 |
 | `vision_ops.py` | 动态阈值、亮度校正、区域处理、模板匹配、卡尺、直线/圆拟合 |
-| `measurement_ops.py` | 平移配准、条纹宽度、径向圆边测量 |
+| `measurement_ops.py` | 周期边界平移配准、[相机画面位移估计](docs/SCENE_MOTION.md)、条纹宽度、径向圆边测量 |
 | `metrology_ops.py` | 批量卡尺直线、独立四边拟合的矩形精测；[说明](docs/METROLOGY.md) |
 | `shape_ops.py` | 离散旋转/尺度轮廓匹配、全边缘验收；[说明](docs/SHAPE_MATCHING.md) |
 | `registration_ops.py` | C++ 精确 KD 树最近邻、局部鲁棒 ICP；[说明](docs/REGISTRATION.md) |

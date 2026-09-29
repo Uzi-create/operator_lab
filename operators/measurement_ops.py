@@ -84,6 +84,251 @@ def estimate_translation(reference, moving, *, window=True, min_response=.15,
     return result
 
 
+def _linear_overlap_correlation(reference, moving, dx, dy):
+    """Pearson correlation on the actual, non-wrapping overlap at a shift."""
+    h, w = reference.shape
+    x, y = int(round(dx)), int(round(dy))
+    width, height = w - abs(x), h - abs(y)
+    if width < 12 or height < 12:
+        return 0., 0.
+    ax, bx = max(0, -x), max(0, x)
+    ay, by = max(0, -y), max(0, y)
+    a = reference[ay:ay + height, ax:ax + width]
+    b = moving[by:by + height, bx:bx + width]
+    am, bm = a - a.mean(), b - b.mean()
+    norm = float(np.linalg.norm(am) * np.linalg.norm(bm))
+    corr = float(np.sum(am * bm) / norm) if norm > 1e-12 else 0.
+    return corr, float(width * height) / (w * h)
+
+
+def _strong_self_similarity(image):
+    """Detect a distinct, almost identical copy of the central scene patch."""
+    h, w = image.shape
+    if min(h, w) < 48:
+        return 0.
+    y0, x0 = h // 4, w // 4
+    patch = image[y0:3 * h // 4, x0:3 * w // 4]
+    if float(patch.std()) < 1e-4:
+        return 0.
+    scores = cv2.matchTemplate(image, patch, cv2.TM_CCOEFF_NORMED)
+    # A few adjacent subpixel positions naturally correlate with the original.
+    radius = max(3, int(round(min(h, w) * .025)))
+    scores[max(0, y0 - radius):y0 + radius + 1,
+           max(0, x0 - radius):x0 + radius + 1] = -1.
+    return float(scores.max())
+
+
+def _local_motion_clusters(reference, moving, global_shift):
+    """Find spatially supported motions that disagree with the global peak."""
+    h, w = reference.shape
+    if min(h, w) < 96:
+        return 0, 0, 0, False, 0., 0.
+    sx, sy = global_shift
+    x0, x1 = max(0, math.ceil(-sx)) + 2, min(w, math.floor(w - sx)) - 2
+    y0, y1 = max(0, math.ceil(-sy)) + 2, min(h, math.floor(h - sy)) - 2
+    if x1 - x0 < 96 or y1 - y0 < 96:
+        return 0, 0, 0, False, 0., 0.
+    # First align the proposed global motion. A tile now estimates only its
+    # residual, avoiding local FFT aliasing on otherwise valid large shifts.
+    aligned = cv2.warpAffine(moving, np.float32([[1, 0, -sx], [0, 1, -sy]]),
+                             (w, h), flags=cv2.INTER_LINEAR,
+                             borderMode=cv2.BORDER_CONSTANT)
+    rows, cols = 3, 4
+    tile_h, tile_w = (y1 - y0) // rows, (x1 - x0) // cols
+    window = _hann((tile_h, tile_w))
+    motions = []
+    coarse_motions, coarse_positions = [], []
+    for row in range(rows):
+        for col in range(cols):
+            y, x = y0 + row * tile_h, x0 + col * tile_w
+            a = reference[y:y + tile_h, x:x + tile_w]
+            b = aligned[y:y + tile_h, x:x + tile_w]
+            if min(float(a.std()), float(b.std())) < 1e-4:
+                continue
+            shift, response = cv2.phaseCorrelate(a - a.mean(), b - b.mean(), window)
+            if response >= .25 and np.isfinite(shift).all():
+                motions.append(shift)
+                coarse_motions.append(shift)
+                coarse_positions.append((2 * col / (cols - 1) - 1,
+                                         2 * row / (rows - 1) - 1))
+    # Wide, shallow border strips remain useful when a large central object
+    # contaminates every coarse tile. Top/bottom resolve horizontal residuals;
+    # left/right resolve vertical residuals. Disjoint strips give independent
+    # evidence instead of counting the same foreground multiple times.
+    strip_h = max(24, (y1 - y0) // 6)
+    strip_w = max(24, (x1 - x0) // 6)
+    borders = [
+        (slice(y0, y0 + strip_h), slice(x0, x1)),
+        (slice(y1 - strip_h, y1), slice(x0, x1)),
+        (slice(y0 + strip_h, y1 - strip_h), slice(x0, x0 + strip_w)),
+        (slice(y0 + strip_h, y1 - strip_h), slice(x1 - strip_w, x1)),
+    ]
+    for ys, xs in borders:
+        a, b = reference[ys, xs], aligned[ys, xs]
+        if min(a.shape) < 24 or min(float(a.std()), float(b.std())) < 1e-4:
+            continue
+        shift, response = cv2.phaseCorrelate(
+            a - a.mean(), b - b.mean(), _hann(a.shape))
+        if response >= .35 and np.isfinite(shift).all():
+            motions.append(shift)
+    if motions:
+        motions = np.asarray(motions)
+    else:
+        motions = np.empty((0, 2), dtype=np.float64)
+    # A second coherent cluster is evidence of two scene motions. Independent
+    # outlier tiles or motion at an occlusion seam do not suffice.
+    tolerance = max(1.5, .025 * min(tile_h, tile_w))
+    same = np.linalg.norm(motions, axis=1) <= tolerance
+    best_competitor = 0
+    for candidate in motions[~same]:
+        count = int((np.linalg.norm(motions - candidate, axis=1) <= tolerance).sum())
+        best_competitor = max(best_competitor, count)
+    affine_deformation, affine_fit_ratio = 0., 0.
+    if len(coarse_motions) >= 8:
+        values = np.asarray(coarse_motions, dtype=np.float64)
+        positions = np.asarray(coarse_positions, dtype=np.float64)
+        design = np.column_stack((np.ones(len(values)), positions))
+        coefficients = np.linalg.lstsq(design, values, rcond=None)[0]
+        predictions = design @ coefficients
+        scatter = float(np.sum((values - values.mean(axis=0)) ** 2))
+        if scatter > 1e-8:
+            affine_fit_ratio = max(0., 1. - float(np.sum((values - predictions) ** 2)) / scatter)
+        corners = np.array([[-1., -1.], [-1., 1.], [1., -1.], [1., 1.]])
+        affine_deformation = float(np.linalg.norm(corners @ coefficients[1:], axis=1).max())
+    # Coarse regions can all contain the same high-contrast foreground. Probe
+    # two opposite, non-overlapping outer bands that may still expose static
+    # background. A one-sided disagreement is never sufficient: thin bands can
+    # contain noise, occlusions, or a scene edge with no reliable translation.
+    thin_conflict = False
+    if best_competitor < 2:
+        def probe(ys, xs):
+            a, b = reference[ys, xs], aligned[ys, xs]
+            if min(a.shape) < 8 or min(float(a.std()), float(b.std())) < 1e-4:
+                return None
+            shift, response = cv2.phaseCorrelate(
+                a - a.mean(), b - b.mean(), _hann(a.shape))
+            if not np.isfinite(shift).all() or response < .6:
+                return None
+            return np.asarray(shift)
+
+        for thickness in (8, 12):
+            if y1 - y0 >= 2 * thickness + 16:
+                top = probe(slice(y0, y0 + thickness), slice(x0, x1))
+                bottom = probe(slice(y1 - thickness, y1), slice(x0, x1))
+                if (top is not None and bottom is not None and
+                    min(abs(top[0]), abs(bottom[0])) > 2. and
+                        abs(top[0] - bottom[0]) <= 1.5):
+                    thin_conflict = True
+                    break
+            if x1 - x0 >= 2 * thickness + 16:
+                left = probe(slice(y0, y1), slice(x0, x0 + thickness))
+                right = probe(slice(y0, y1), slice(x1 - thickness, x1))
+                if (left is not None and right is not None and
+                    min(abs(left[1]), abs(right[1])) > 2. and
+                        abs(left[1] - right[1]) <= 1.5):
+                    thin_conflict = True
+                    break
+    return (int(same.sum()), best_competitor, len(motions), thin_conflict,
+            affine_deformation, affine_fit_ratio)
+
+
+def estimate_scene_motion(reference, moving, *, max_analysis_width=480,
+                          min_response=.15, max_shift=None):
+    """Conservative image-plane shift for consecutive camera frames.
+
+    Returns image displacement from reference to moving in original pixels.
+    This is not a 3-D camera or robot trajectory. The model assumes linear
+    (non-wrapping) translation; rotation, parallax and independent objects can
+    make one global displacement undefined. Ambiguous estimates fail closed.
+    ``max_analysis_width`` bounds the longest analysis dimension for speed.
+    A caller with a known frame rate can set ``max_shift=(dx, dy)`` limits.
+    OpenCV response is a peak measure, not a calibrated probability.
+    """
+    reference, moving = _gray(reference), _gray(moving)
+    if reference.shape != moving.shape or min(reference.shape) < 16:
+        raise ValueError('Equal image shapes, at least 16x16, required')
+    if type(max_analysis_width) is not int or not 32 <= max_analysis_width <= 4096:
+        raise ValueError('max_analysis_width must be an integer in 32..4096')
+    if not math.isfinite(min_response) or not 0 <= min_response <= 1:
+        raise ValueError('min_response must be finite and in [0,1]')
+    limits = None
+    if max_shift is not None:
+        limits = np.asarray(max_shift, dtype=np.float64)
+        if limits.shape != (2,) or not np.isfinite(limits).all() or np.any(limits < 0):
+            raise ValueError('max_shift must be finite nonnegative (dx,dy) limits')
+    h0, w0 = reference.shape
+    scale = min(1., max_analysis_width / max(h0, w0))
+    if scale < 1:
+        size = (max(16, round(w0 * scale)), max(16, round(h0 * scale)))
+        reference = cv2.resize(reference, size, interpolation=cv2.INTER_AREA)
+        moving = cv2.resize(moving, size, interpolation=cv2.INTER_AREA)
+    h, w = reference.shape
+    result = {'success': False, 'reason': 'insufficient_texture',
+              'shift_xy': None, 'response': 0., 'alignment_matrix': None,
+              'analysis_shape_hw': (h, w)}
+    a = np.asarray(reference, dtype=np.float32)
+    b = np.asarray(moving, dtype=np.float32)
+    if min(float(a.std()), float(b.std())) < 1e-4:
+        return result
+    aa = np.zeros((h * 2, w * 2), dtype=np.float32)
+    bb = np.zeros_like(aa)
+    aa[:h, :w] = a - a.mean()
+    bb[:h, :w] = b - b.mean()
+    shift, response = cv2.phaseCorrelate(aa, bb)
+    shift = np.asarray(shift, dtype=np.float64)
+    shift *= (w0 / w, h0 / h)
+    result.update(shift_xy=shift, response=float(response), reason='low_response')
+    if not np.isfinite(shift).all() or not math.isfinite(response) or response < min_response:
+        return result
+    if limits is not None and np.any(np.abs(shift) > limits):
+        result['reason'] = 'shift_limit'
+        return result
+    sx, sy = shift * (w / w0, h / h0)
+    overlap = max(0., 1. - abs(sx) / w) * max(0., 1. - abs(sy) / h)
+    result['overlap_fraction'] = float(overlap)
+    if overlap < .2:
+        result['reason'] = 'insufficient_overlap'
+        return result
+    similarity = _strong_self_similarity(a)
+    result['self_similarity'] = similarity
+    if similarity > .965:
+        result['reason'] = 'ambiguous_texture'
+        return result
+    # A circularly shifted image can perfectly support two opposite linear
+    # interpretations. Test all other wrapped aliases with useful overlap.
+    primary, _ = _linear_overlap_correlation(a, b, sx, sy)
+    result['overlap_correlation'] = primary
+    # A chance FFT peak on unrelated frames can exceed min_response,
+    # especially on tiny images with too few independent samples. True
+    # translations must also preserve visible structure in the overlap.
+    if primary < .25:
+        result['reason'] = 'low_overlap_correlation'
+        return result
+    for offset_x in (-w, 0, w):
+        for offset_y in (-h, 0, h):
+            if offset_x == 0 and offset_y == 0:
+                continue
+            alternative, support = _linear_overlap_correlation(
+                a, b, sx + offset_x, sy + offset_y)
+            if support >= .2 and alternative >= max(.75, primary - .12):
+                result['reason'] = 'ambiguous_wrap'
+                return result
+    same, other, tile_count, thin_conflict, affine_deformation, affine_fit_ratio = (
+        _local_motion_clusters(a, b, (sx, sy)))
+    result['local_consensus'] = {'global_tiles': same,
+                                 'competing_tiles': other, 'valid_tiles': tile_count,
+                                 'opposite_border_conflict': thin_conflict,
+                                 'affine_deformation': affine_deformation,
+                                 'affine_fit_ratio': affine_fit_ratio}
+    if (other >= 2 or thin_conflict or
+            (affine_deformation > .45 and affine_fit_ratio > .65)):
+        result['reason'] = 'inconsistent_motion'
+        return result
+    result.update(success=True, reason='ok', alignment_matrix=np.array(
+        [[1., 0., -shift[0]], [0., 1., -shift[1]]]))
+    return result
+
+
 def measure_stripes(image, start, end, *, width=9, sigma=1., threshold=.03,
                     polarity='bright', min_width=2., max_width=None,
                     min_distance=3.):
