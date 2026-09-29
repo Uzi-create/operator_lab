@@ -5,6 +5,7 @@
 | 用途 | 示例 |
 |---|---|
 | 基础图像处理 | `python projects/examples/demo.py` |
+| USB 摄像头实时算子 | `python projects/camera/live_operators.py --camera 1`；[说明](camera/README.md) |
 | 金属表面候选检测 | `python projects/metal/run_samples.py` |
 | 视觉定位与测量 | `python projects/vision_robot/demo_vision_robot.py` |
 | 相机标定 | `python projects/vision_robot/demo_calibration.py` |

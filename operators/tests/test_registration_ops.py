@@ -48,7 +48,10 @@ class NearestNeighborTests(unittest.TestCase):
                 with self.subTest(backend=backend, limit=limit), NearestNeighborIndex(target, backend=backend) as index:
                     found = index.query(query, max_distance=limit)
                     np.testing.assert_array_equal(found['indices'], expected_index)
-                    np.testing.assert_allclose(found['squared_distances'], expected_squared, rtol=2e-16)
+                    # The scalar oracle uses **2; native/NumPy multiply and sum.
+                    # Allow a few float64 rounding steps across CPU/compiler builds.
+                    np.testing.assert_allclose(found['squared_distances'], expected_squared,
+                                               rtol=8*np.finfo(np.float64).eps, atol=0)
                     np.testing.assert_array_equal(found['valid'], expected_index >= 0)
                     np.testing.assert_array_equal(found['distances'], np.sqrt(found['squared_distances']))
 

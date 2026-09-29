@@ -26,6 +26,11 @@ class LayoutTests(unittest.TestCase):
         environment.pop('PYTHONPATH', None)
         with tempfile.TemporaryDirectory() as directory:
             for script in ['build.py', 'verify.py', 'projects/examples/demo.py',
+                           'projects/camera/live_operators.py',
+                           'projects/camera/verify_camera_operators.py',
+                           'projects/camera/live_all_operators.py',
+                           'projects/camera/focus_meter.py',
+                           'projects/camera/experiment_mean.py',
                            'projects/metal/run_samples.py', 'projects/vision_robot/demo_vision_robot.py',
                            'projects/vision_robot/demo_metrology.py', 'projects/vision_robot/demo_advanced_perception.py',
                            'projects/vision_robot/demo_depth_components.py', 'projects/benchmarks/benchmark_depth_components.py',
