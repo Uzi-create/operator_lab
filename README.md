@@ -22,7 +22,21 @@ from operators.perception_ops import pointcloud_to_depth, elevation_grid
 
 可以从 [双目文件流程](projects/docs/STEREO_FILE_WORKFLOW.md) 接入自己的左右相机图像与标定 JSON；金属表面样例见 [说明](projects/metal/README.md)。
 
+相机画面运动测试支持框选静态背景 ROI、查看帧间位移和拒绝原因、绘制分段累计位移，并自动保存原始/叠加视频、CSV、JSONL 和耗时报告：
+
+```bash
+python -B projects/camera/live_motion.py --demo
+python -B projects/camera/live_motion.py --camera 1
+python -B projects/camera/live_motion.py --demo --headless --frames 120
+```
+
+鼠标拖拽选择背景；空格暂停/恢复、R 重置轨迹、F 使用全画面、Q 退出。相机索引以目标电脑为准。绿色箭头表示画面位移，累计轨迹只连接连续有效结果；它不表示三维相机或机器人位姿。完整输入、录制和时间戳说明见[运动测试指南](projects/camera/MOTION_TEST.md)。
+
 ## 验证边界
+
+2026-10-04 新增的相机运动界面在 Windows 通过全库 329 项测试及录制专项回归；120 帧原始/叠加录像均完整解码，回放与逐帧记录一致，接受/拒绝/恢复轨迹已检查。新界面的真实相机现场效果仍待测，详情见[本次验证记录](projects/camera/MOTION_VALIDATION.md)。
+
+2026-10-04 新增的相机运动界面在 Windows 通过全库 329 项测试及录制专项回归；120 帧原始/叠加录像均完整解码，回放与逐帧记录一致，接受/拒绝/恢复轨迹已检查。新界面的真实相机现场效果仍待测，详情见[本次验证记录](projects/camera/MOTION_VALIDATION.md)。
 
 2026-09-28 在 Windows 本机完成 248 项 Python 测试、C++ 断言、27 组演示和 177 张 PNG 解码。几何与标定精度主要来自已知真值的合成数据；金属照片有候选框与人工 ROI，没有缺陷真值。2026-09-29 在 macOS arm64（Python 3.12.13、NumPy 2.5.3、OpenCV 4.14.0）完成独立验证：248 项 Python 测试、C++ 断言与地址/未定义行为 sanitizer、27 组演示、177 张 PNG 解码。最近邻测试允许几个 float64 舍入步骤的误差，匹配索引仍要求完全一致。Linux、真实双目相机、机器人和生产现场尚未完成独立运行与精度验证。历史基准只适用于各自所记载的硬件、编译器和输入条件。
 

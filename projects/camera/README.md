@@ -1,5 +1,7 @@
 # USB 摄像头与实时算子
 
+新增[专用画面运动测试界面](MOTION_TEST.md)：运行 `python projects/camera/live_motion.py --demo` 无相机演示，或 `python projects/camera/live_motion.py --camera 1` 测试真实相机。支持拖拽背景 ROI、拒绝原因、分段累计位移、原始/叠加视频及逐帧耗时报告。以下历史相机记录保留其原测试日期和设备环境，不能替代目标电脑验证。
+
 左侧显示原始彩色画面，右侧显示处理结果。输入由 OpenCV 读取，灰度转成 float32 `[0,1]` 后调用本项目的 C++ 算子；不用静默回退来掩盖动态库问题。
 
 本机系统识别到 HK 1080P RGB 和 HK 1080P NIR。2026-09-29 本次 OpenCV 实测：索引 1 为彩色桌面画面，索引 0 为灰度桌面画面；分别保留验证结果。普通 AVFoundation 枚举次序不能直接当成 OpenCV 索引：OpenCV macOS 后端按设备 uniqueID 排序，见 [官方源码](https://github.com/opencv/opencv/blob/4.x/modules/videoio/src/cap_avfoundation_mac.mm)。索引可能随设备连接情况或换电脑变化。
