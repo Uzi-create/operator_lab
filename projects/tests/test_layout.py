@@ -34,6 +34,8 @@ class LayoutTests(unittest.TestCase):
                            'projects/camera/experiment_mean.py',
                            'projects/metal/run_samples.py', 'projects/vision_robot/demo_vision_robot.py',
                            'projects/vision_robot/demo_metrology.py', 'projects/vision_robot/demo_advanced_perception.py',
+                           'projects/vision_robot/demo_correspondence_cylinder.py',
+                           'projects/benchmarks/benchmark_correspondence_cylinder.py',
                            'projects/vision_robot/demo_depth_components.py', 'projects/benchmarks/benchmark_depth_components.py',
                            'projects/vision_robot/demo_ray_plane.py', 'projects/benchmarks/benchmark_ray_plane.py',
                            'projects/vision_robot/demo_ground_obstacles.py', 'projects/benchmarks/benchmark_ground_obstacles.py',

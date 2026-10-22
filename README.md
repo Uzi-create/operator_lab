@@ -12,7 +12,7 @@ python -B build.py
 python -B verify.py --demos
 ```
 
-`verify.py --demos` 构建动态库、运行 Python 测试与 C++ 断言，并执行 27 组演示及检查 PNG 输出。样本照片位于 `projects/metal/samples/`；若自行移除照片，验证会跳过 5 组实拍演示，仍运行算子和合成数据测试。输出写入 `projects/output/verified_current/`。跨电脑构建时不要使用 `--native`；该选项针对当前 CPU 生成代码。
+`verify.py --demos` 构建动态库、运行 Python 测试与 C++ 断言，并执行 28 组演示及检查 PNG 输出。样本照片位于 `projects/metal/samples/`；若自行移除照片，验证会跳过 5 组实拍演示，仍运行算子和合成数据测试。输出写入 `projects/output/verified_current/`。跨电脑构建时不要使用 `--native`；该选项针对当前 CPU 生成代码。
 
 ```python
 from operators.feature_ops import create_orb_template, locate_planar_template
@@ -21,6 +21,8 @@ from operators.perception_ops import pointcloud_to_depth, elevation_grid
 ```
 
 可以从 [双目文件流程](projects/docs/STEREO_FILE_WORKFLOW.md) 接入自己的左右相机图像与标定 JSON；金属表面样例见 [说明](projects/metal/README.md)。
+
+新增[三维对应点定位与圆柱测量](projects/docs/CORRESPONDENCE_CYLINDER.md)：从含错配的三维对应点恢复刚体位姿，并在已知轴方向下拟合圆柱半径和轴线。运行 `python -B projects/vision_robot/demo_correspondence_cylinder.py` 查看带真值核对的合成示例。圆柱的可见支持跨度不等于物理管长；两个新算子使用 NumPy 矩阵内核和 Python RANSAC 调度。
 
 相机画面运动测试支持框选静态背景 ROI、查看帧间位移和拒绝原因、绘制分段累计位移，并自动保存原始/叠加视频、CSV、JSONL 和耗时报告：
 
@@ -34,7 +36,7 @@ python -B projects/camera/live_motion.py --demo --headless --frames 120
 
 ## 验证边界
 
-2026-10-04 新增的相机运动界面在 Windows 通过全库 329 项测试及录制专项回归；120 帧原始/叠加录像均完整解码，回放与逐帧记录一致，接受/拒绝/恢复轨迹已检查。新界面的真实相机现场效果仍待测，详情见[本次验证记录](projects/camera/MOTION_VALIDATION.md)。
+本批新增三维对应点定位与已知轴圆柱测量，2026-10-11 在 Windows 通过全库 356 项测试、C++ 断言、28 组演示和 178 张 PNG 解码；另有 87 个独立合成审计场景通过。2026-10-22 发布前核对算法源码哈希未变。完整 API 性能对照及边界见[验证记录](projects/docs/GEOMETRY_VALIDATION.md)。
 
 2026-10-04 新增的相机运动界面在 Windows 通过全库 329 项测试及录制专项回归；120 帧原始/叠加录像均完整解码，回放与逐帧记录一致，接受/拒绝/恢复轨迹已检查。新界面的真实相机现场效果仍待测，详情见[本次验证记录](projects/camera/MOTION_VALIDATION.md)。
 

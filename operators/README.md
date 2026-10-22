@@ -10,6 +10,8 @@
 | `metrology_ops.py` | 批量卡尺直线、独立四边拟合的矩形精测；[说明](docs/METROLOGY.md) |
 | `shape_ops.py` | 离散旋转/尺度轮廓匹配、全边缘验收；[说明](docs/SHAPE_MATCHING.md) |
 | `registration_ops.py` | C++ 精确 KD 树最近邻、局部鲁棒 ICP；[说明](docs/REGISTRATION.md) |
+| `correspondence_ops.py` | 已知三维对应点的错配剔除与刚体初始定位；[说明](docs/CORRESPONDENCE_POSE.md) |
+| `cylinder_ops.py` | 已知轴方向的圆柱半径、轴线与可见跨度测量；[说明](docs/CYLINDER.md) |
 | `icp_plane_ops.py` | 带目标法向的六自由度局部点到平面 ICP；[说明](docs/ICP_POINT_TO_PLANE.md) |
 | `pose_ops.py` | 标定相机 PnP 位姿、最终残差及平面双解诊断；[说明](docs/POSE_ESTIMATION.md) |
 | `calibration_ops.py` | 棋盘内角点检测、多视图平面相机标定及独立重投影诊断；[说明](docs/CALIBRATION.md) |

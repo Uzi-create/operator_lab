@@ -23,6 +23,7 @@ def run_demos(output):
         ('projects/vision_robot/demo_vision_robot.py', 'vision_robot'),
         ('projects/vision_robot/demo_metrology.py', 'metrology'),
         ('projects/vision_robot/demo_advanced_perception.py', 'advanced_perception'),
+        ('projects/vision_robot/demo_correspondence_cylinder.py', 'correspondence_cylinder'),
         ('projects/vision_robot/demo_depth_components.py', 'depth_components'),
         ('projects/vision_robot/demo_ray_plane.py', 'ray_plane'),
         ('projects/vision_robot/demo_ground_obstacles.py', 'ground_obstacles'),

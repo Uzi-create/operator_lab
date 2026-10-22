@@ -1,0 +1,261 @@
+{
+  "repeats": 21,
+  "warmups": 3,
+  "checks": [
+    {
+      "seed": 61010,
+      "rotation_error_deg": 0.012339935777036746,
+      "translation_error_m": 3.96810949454696e-05,
+      "pose_rms_m": 0.000856653686860707,
+      "correspondence_inliers": 1050,
+      "wrong_correspondences_accepted": 0,
+      "cylinder_axis_distance_m": 3.164398740306544e-05,
+      "radius_error_m": -8.82207992973505e-06,
+      "cylinder_rms_m": 0.0005294466017250369,
+      "observed_length_m": 0.4092935253525386,
+      "coverage_deg": 309.10535213282765
+    },
+    {
+      "seed": 47,
+      "rotation_error_deg": 0.019232985227251562,
+      "translation_error_m": 5.4593581551184566e-05,
+      "pose_rms_m": 0.0008812851334459096,
+      "correspondence_inliers": 1050,
+      "wrong_correspondences_accepted": 0,
+      "cylinder_axis_distance_m": 2.130276717781146e-05,
+      "radius_error_m": -3.674577997214712e-06,
+      "cylinder_rms_m": 0.0005163930280845978,
+      "observed_length_m": 0.36991746166614337,
+      "coverage_deg": 329.3773220666896
+    },
+    {
+      "seed": 903,
+      "rotation_error_deg": 0.012677931702724072,
+      "translation_error_m": 3.246285444938761e-05,
+      "pose_rms_m": 0.0008673772436151862,
+      "correspondence_inliers": 1050,
+      "wrong_correspondences_accepted": 0,
+      "cylinder_axis_distance_m": 8.011203753582247e-06,
+      "radius_error_m": 1.9559567177820925e-05,
+      "cylinder_rms_m": 0.0005267440278269576,
+      "observed_length_m": 0.43768156877341663,
+      "coverage_deg": 307.88406623432064
+    },
+    {
+      "seed": 272,
+      "rotation_error_deg": 0.0047592191946041595,
+      "translation_error_m": 5.0823191160930555e-05,
+      "pose_rms_m": 0.0008713759102942678,
+      "correspondence_inliers": 1050,
+      "wrong_correspondences_accepted": 0,
+      "cylinder_axis_distance_m": 2.189331028784932e-05,
+      "radius_error_m": -1.3481064531251086e-05,
+      "cylinder_rms_m": 0.0004978336528896921,
+      "observed_length_m": 0.320154849075733,
+      "coverage_deg": 299.5919902261313
+    }
+  ],
+  "timings": {
+    "pose_1500_30percent_mismatches": {
+      "median_ms": 6.6427,
+      "p95_ms": 9.2807,
+      "samples_ms": [
+        2.9419,
+        2.8514,
+        2.3663,
+        2.4842,
+        2.5117,
+        2.8842,
+        2.3579,
+        7.3924,
+        5.9795,
+        7.1776,
+        6.6177,
+        6.9778,
+        6.7907,
+        7.2632,
+        9.5654,
+        7.6042,
+        8.28,
+        9.2807,
+        6.4499,
+        7.3442,
+        6.6427
+      ]
+    },
+    "pose_10000_30percent_mismatches": {
+      "median_ms": 20.05,
+      "p95_ms": 21.8009,
+      "samples_ms": [
+        10.3865,
+        9.8674,
+        9.3156,
+        9.8906,
+        10.3562,
+        10.0036,
+        10.4779,
+        19.1234,
+        20.05,
+        21.8009,
+        20.2333,
+        21.3648,
+        19.8035,
+        20.9237,
+        22.1817,
+        20.6083,
+        21.3184,
+        20.7663,
+        21.2904,
+        19.8424,
+        21.5739
+      ]
+    },
+    "cylinder_1500_20percent_clutter": {
+      "median_ms": 4.9859,
+      "p95_ms": 6.3195,
+      "samples_ms": [
+        2.2988,
+        2.1079,
+        2.2292,
+        1.869,
+        1.9189,
+        2.1244,
+        1.8848,
+        5.546,
+        4.7331,
+        5.3711,
+        4.9859,
+        6.8931,
+        5.7016,
+        4.7776,
+        5.9168,
+        5.4793,
+        5.8724,
+        5.0201,
+        6.3195,
+        4.9899,
+        4.4961
+      ]
+    },
+    "cylinder_10000_20percent_clutter": {
+      "median_ms": 14.2353,
+      "p95_ms": 16.4532,
+      "samples_ms": [
+        7.3304,
+        8.275,
+        7.2757,
+        7.4215,
+        7.3118,
+        7.5795,
+        7.7628,
+        14.2466,
+        13.6172,
+        15.5454,
+        14.2353,
+        14.2771,
+        16.3767,
+        17.3366,
+        14.0073,
+        16.4532,
+        16.0427,
+        14.1793,
+        14.2919,
+        15.2367,
+        16.076
+      ]
+    },
+    "pose_before_1500": {
+      "median_ms": 147.5337,
+      "p95_ms": 156.8229,
+      "samples_ms": [
+        54.2329,
+        50.7966,
+        52.9405,
+        50.9748,
+        51.0307,
+        50.6383,
+        50.9481,
+        141.5542,
+        149.1552,
+        151.7738,
+        147.5337,
+        149.6147,
+        153.5059,
+        146.2781,
+        177.3852,
+        153.3239,
+        156.8229,
+        145.9037,
+        149.5149,
+        153.2338,
+        149.3943
+      ]
+    },
+    "pose_before_10000": {
+      "median_ms": 317.7367,
+      "p95_ms": 347.8761,
+      "samples_ms": [
+        152.3238,
+        147.7904,
+        151.443,
+        152.8357,
+        150.1459,
+        150.5227,
+        150.6605,
+        207.4668,
+        328.2845,
+        317.7367,
+        317.5887,
+        349.8023,
+        347.8761,
+        337.326,
+        332.0164,
+        347.1346,
+        328.7376,
+        323.4691,
+        325.532,
+        298.3538,
+        339.6068
+      ]
+    }
+  },
+  "comparison": {
+    "baseline_sha256": "d039e8151e488b92239010f72057bfe09759a6e469afdf2c4b8245977f7383ec",
+    "cases": [
+      {
+        "points": 1500,
+        "masks_equal": true,
+        "max_transform_difference": 0.0,
+        "previous_iterations": 512,
+        "current_iterations": 17
+      },
+      {
+        "points": 10000,
+        "masks_equal": true,
+        "max_transform_difference": 0.0,
+        "previous_iterations": 512,
+        "current_iterations": 17
+      }
+    ],
+    "median_speedup": {
+      "1500": 22.209899589022537,
+      "10000": 15.847216957605983
+    }
+  },
+  "scope": "Full API including input validation, RANSAC, refinement and final residuals. Synthetic data; no camera capture or display.",
+  "implementation": "NumPy matrix kernels and bounded Python RANSAC orchestration; not a new custom C++ kernel.",
+  "environment": {
+    "python": "3.11.4",
+    "numpy": "2.2.6",
+    "opencv": "4.12.0",
+    "system": "Windows",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 191 Stepping 2, GenuineIntel"
+  },
+  "hashes": {
+    "operators/correspondence_ops.py": "e62d753bc912d490850c4703015e34d575c800fcb42a9f32763b12e2831a829f",
+    "operators/cylinder_ops.py": "1c64d48bac4af8c71e10ed3e5a46570329aba74204767e3df5f93cce5334a8e9",
+    "projects/vision_robot/demo_correspondence_cylinder.py": "8fa865ca61e90c16044612beef83179344308ace9db201862391c1808dd21a69",
+    "projects/benchmarks/benchmark_correspondence_cylinder.py": "6a895d32e1758dd3dface61a0cd1eb3a6c1803ef84f92e57fd68d3d6f6d1820d"
+  }
+}

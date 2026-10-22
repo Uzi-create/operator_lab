@@ -13,5 +13,8 @@
 | 双目文件到点云 | `python projects/vision_robot/demo_stereo_file_workflow.py` |
 | 手眼标定 | `python projects/vision_robot/demo_handeye.py` |
 | 点云配准 | `python projects/vision_robot/demo_icp_plane.py` |
+| 三维对应点定位与圆柱测量 | `python projects/vision_robot/demo_correspondence_cylinder.py`；[说明](docs/CORRESPONDENCE_CYLINDER.md) |
 
 其他演示位于 `projects/vision_robot/`，性能脚本位于 `projects/benchmarks/`。金属检测的照片和人工 ROI 已随仓库发布；候选结果没有缺陷真值，不能算作准确率。双目文件输入格式见 [说明](docs/STEREO_FILE_WORKFLOW.md)。
+
+三维定位与圆柱测量的完整 API 基准：`python -B projects/benchmarks/benchmark_correspondence_cylinder.py --repeats 21`。先检查合成数据真值，再计时；报告写入 `projects/output/correspondence_cylinder_benchmark/`。
