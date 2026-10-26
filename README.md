@@ -2,6 +2,8 @@
 
 可复用的 Python 接口与 C++17 内核，覆盖定位与模板匹配、几何测量、相机标定、双目深度、点云处理和机器人感知。`operators/` 是算子库；`projects/` 是示例、基准与金属表面检测应用。详细接口见 [算子索引](operators/README.md) 和 [项目索引](projects/README.md)。
 
+新增 [纯 C++17 RGB-D 目标感知组件](operators/cpp/README.md)：显式单位/步长的深度视图、反投影与刚体变换、带预测深度门限的稳健区域估计、按时间和速度约束的目标证据确认。独立构建无需 Python、OpenCV 或 ROS：`make -C operators/cpp test demo`。组件不依赖旧 KCF，也不直接控制机器人。
+
 ## 快速开始
 
 需要 Python 3.9+、NumPy、OpenCV 和 C++17 编译器。Windows 使用 MinGW-w64 `g++`，macOS 使用 Xcode Command Line Tools 的 `c++`，Linux 使用 `g++` 或 `c++`。

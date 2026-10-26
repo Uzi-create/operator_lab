@@ -37,9 +37,17 @@ def main():
         environment['ASAN_OPTIONS']='halt_on_error=1'
         environment['UBSAN_OPTIONS']='halt_on_error=1:print_stacktrace=1'
         subprocess.run([str(binary)],check=True,env=environment)
+    # Development harness only; the RGB-D component itself is standalone C++17.
+    with tempfile.TemporaryDirectory(prefix='operator-rgbd-check-') as directory:
+        binary = Path(directory) / ('test_rgbd.exe' if sys.platform == 'win32' else 'test_rgbd')
+        subprocess.run(compiler + ['-std=c++17', '-O1', '-g'] + flags +
+                       ['-Ioperators/cpp/include', 'operators/cpp/tests/test_rgbd.cpp',
+                        'operators/cpp/tests/header_link.cpp', '-o', str(binary)],
+                       check=True, cwd=ROOT)
+        subprocess.run([str(binary)], check=True, env=environment)
     if args.demos:
         from projects.tools.smoke_outputs import run_demos
         run_demos(args.output)
-    print('PASS: build, operator and project tests, native assertions'+(' and sanitizers' if args.sanitizers else '')+(' and demo outputs' if args.demos else ''))
+    print('PASS: build, operator and project tests, native assertions and C++ RGB-D checks'+(' and sanitizers' if args.sanitizers else '')+(' and demo outputs' if args.demos else ''))
 
 if __name__=='__main__':main()
