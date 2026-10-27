@@ -37,14 +37,50 @@ def main():
         environment['ASAN_OPTIONS']='halt_on_error=1'
         environment['UBSAN_OPTIONS']='halt_on_error=1:print_stacktrace=1'
         subprocess.run([str(binary)],check=True,env=environment)
-    # Development harness only; the RGB-D component itself is standalone C++17.
+    # Development harness only; algorithm and replay runtime remain pure C++17.
     with tempfile.TemporaryDirectory(prefix='operator-rgbd-check-') as directory:
-        binary = Path(directory) / ('test_rgbd.exe' if sys.platform == 'win32' else 'test_rgbd')
-        subprocess.run(compiler + ['-std=c++17', '-O1', '-g'] + flags +
-                       ['-Ioperators/cpp/include', 'operators/cpp/tests/test_rgbd.cpp',
-                        'operators/cpp/tests/header_link.cpp', '-o', str(binary)],
-                       check=True, cwd=ROOT)
-        subprocess.run([str(binary)], check=True, env=environment)
+        def compile_cpp(name, sources):
+            binary = Path(directory) / (name + ('.exe' if sys.platform == 'win32' else ''))
+            subprocess.run(compiler + ['-std=c++17', '-O1', '-g'] + flags +
+                           ['-Ioperators/cpp/include'] + sources + ['-o', str(binary)],
+                           check=True, cwd=ROOT)
+            return binary
+        for name, sources in [
+            ('test_rgbd', ['operators/cpp/tests/test_rgbd.cpp', 'operators/cpp/tests/header_link.cpp']),
+            ('test_tracking', ['operators/cpp/tests/test_tracking.cpp']),
+            ('test_replay_io', ['operators/cpp/tests/test_replay_io.cpp']),
+        ]:
+            subprocess.run([str(compile_cpp(name, sources))], check=True, env=environment)
+        replay = compile_cpp('rgbd_replay', ['operators/cpp/examples/rgbd_replay.cpp'])
+        inputs, outputs = Path(directory)/'inputs', Path(directory)/'outputs'
+        subprocess.run([str(replay), '--generate-demo', str(inputs)], check=True, env=environment)
+        subprocess.run([str(replay), str(inputs/'calibration.txt'), str(inputs/'frames.txt'), str(outputs)],
+                       check=True, env=environment)
+        import csv
+        with (outputs/'results.csv').open() as stream:
+            rows = list(csv.DictReader(stream))
+        if len(rows) != 34 or any(rows[i]['fresh'] != '0' for i in (6, 7, 8)):
+            raise RuntimeError('synthetic replay did not withhold observations during occlusion')
+        if rows[29]['state'] != 'lost' or rows[30]['state'] != 'confirming' or rows[32]['state'] != 'tracking':
+            raise RuntimeError('synthetic replay lost/reselection contract failed')
+        for i, row in enumerate(rows):
+            image = (inputs/f'{i:06d}.ppm').read_bytes().split(b'\n', 3)[3]
+            if row['fresh'] == '1':
+                # Independent ground truth: every measured representative must lie
+                # on the red target in the generated input, never the blue occluder.
+                u = round(40 + 70*(float(row['x_m']) - i*.01)/float(row['z_m']))
+                v = round(24 + 70*float(row['y_m'])/float(row['z_m']))
+                if not (0 <= u < 80 and 0 <= v < 48):
+                    raise RuntimeError('replay representative outside the image')
+                pixel = image[(v*80+u)*3:(v*80+u)*3+3]
+                if pixel[0] < 200 or pixel[2] > 80:
+                    raise RuntimeError('replay associated the distractor or background')
+            bmp = (outputs/f'{i:06d}.bmp').read_bytes()
+            if bmp[:2] != b'BM' or int.from_bytes(bmp[18:22], 'little') != 160 or int.from_bytes(bmp[22:26], 'little') != 48:
+                raise RuntimeError('invalid replay visualization output')
+        if not (outputs/'index.html').is_file():
+            raise RuntimeError('missing replay viewer')
+        print('PASS: 34-frame synthetic replay, target support, occlusion, reselection and output checks')
     if args.demos:
         from projects.tools.smoke_outputs import run_demos
         run_demos(args.output)

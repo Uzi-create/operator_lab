@@ -6,8 +6,8 @@ BUILD_DIR ?= build
 BASE_FLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Iinclude
 HEADERS = $(wildcard include/operator_lab/*.hpp)
 
-.PHONY: all test demo clean
-all: $(BUILD_DIR)/test_rgbd $(BUILD_DIR)/depth_target_demo
+.PHONY: all test demo replay clean
+all: $(BUILD_DIR)/test_rgbd $(BUILD_DIR)/test_tracking $(BUILD_DIR)/test_replay_io $(BUILD_DIR)/depth_target_demo $(BUILD_DIR)/rgbd_replay
 
 $(BUILD_DIR):
 	mkdir -p "$@"
@@ -18,11 +18,24 @@ $(BUILD_DIR)/test_rgbd: tests/test_rgbd.cpp tests/header_link.cpp $(HEADERS) | $
 $(BUILD_DIR)/depth_target_demo: examples/depth_target_demo.cpp $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(BASE_FLAGS) $(CXXFLAGS) examples/depth_target_demo.cpp $(LDFLAGS) -o "$@"
 
-test: $(BUILD_DIR)/test_rgbd
+$(BUILD_DIR)/test_tracking: tests/test_tracking.cpp $(HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(BASE_FLAGS) $(CXXFLAGS) tests/test_tracking.cpp $(LDFLAGS) -o "$@"
+
+$(BUILD_DIR)/test_replay_io: tests/test_replay_io.cpp $(HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(BASE_FLAGS) $(CXXFLAGS) tests/test_replay_io.cpp $(LDFLAGS) -o "$@"
+
+$(BUILD_DIR)/rgbd_replay: examples/rgbd_replay.cpp $(HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(BASE_FLAGS) $(CXXFLAGS) examples/rgbd_replay.cpp $(LDFLAGS) -o "$@"
+
+test: $(BUILD_DIR)/test_rgbd $(BUILD_DIR)/test_tracking $(BUILD_DIR)/test_replay_io
 	"$(BUILD_DIR)/test_rgbd"
+	"$(BUILD_DIR)/test_tracking"
+	"$(BUILD_DIR)/test_replay_io"
 
 demo: $(BUILD_DIR)/depth_target_demo
 	"$(BUILD_DIR)/depth_target_demo"
 
+replay: $(BUILD_DIR)/rgbd_replay
+
 clean:
-	rm -f "$(BUILD_DIR)/test_rgbd" "$(BUILD_DIR)/depth_target_demo"
+	rm -f "$(BUILD_DIR)/test_rgbd" "$(BUILD_DIR)/test_tracking" "$(BUILD_DIR)/test_replay_io" "$(BUILD_DIR)/depth_target_demo" "$(BUILD_DIR)/rgbd_replay"

@@ -1,6 +1,6 @@
 # 纯 C++17 RGB-D 目标感知算子
 
-这是一组与 KCF、检测网络和 ROS 解耦的基础算子，没有 Python、OpenCV、第三方库或动态库加载依赖。它不构成完整目标跟踪器，也不直接发送运动指令。接口位于 `include/operator_lab/`，均为 `inline` / 模板，可从多个翻译单元安全包含。
+这里包含与 KCF、检测网络和 ROS 解耦的基础算子，以及一个可回放的传统 RGB-D 目标跟踪原型。算法和回放程序没有 Python、OpenCV、第三方库或动态库加载依赖。它不包含人员检测网络或运动控制。接口位于 `include/operator_lab/`，均为 `inline` / 模板，可从多个翻译单元安全包含。
 
 ## 构建与验证
 
@@ -8,6 +8,7 @@
 
 ```sh
 make -C operators/cpp test demo
+make -C operators/cpp replay
 make -C operators/cpp BUILD_DIR=build-sanitized \
   CXXFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' test demo
 ```
@@ -102,3 +103,84 @@ result = evidence.poll(now_s);
 - AddressSanitizer + UndefinedBehaviorSanitizer：新 C++ 检查与示例通过。
 - 仓库完整 `verify.py --sanitizers`：356 项现有测试、原生断言及新增 563 项 C++ 检查通过。
 - 未做真实深度相机、Linux/Windows 目标机、模型推理、ROS 联调或实车运动验证。
+
+## 4. 空间区域、外观关联与三维预测
+
+新增头文件与输入输出：
+
+| 文件 | 输入 → 输出 |
+|---|---|
+| `depth_regions.hpp` | 深度图、内参、ROI、可选掩膜及邻接判定 → 空间连通区域、实际支撑像素、代表点 |
+| `target_association.hpp` | 候选三维位置/外观、预测位置及方差、参考外观 → 匹配、无匹配或歧义 |
+| `motion3d.hpp` | 固定坐标系内带时间戳的三维观测 → 位置/速度估计、预测位置及方差 |
+| `rgbd_tracker.hpp` | 已配准 RGB-D、内参、按帧位姿、时刻和初始选择像素 → 跟踪状态及观测/预测位置 |
+| `replay_io.hpp` | PPM/PGM、标定和逐帧清单 → 经检查的数据；支持诊断 BMP 输出 |
+
+`extract_depth_regions()` 依据像素邻接和深度跳变分区。相同深度但不连通的物体保持分离，`point_m` 使用区域内**真实像素及其实际深度**，不会将两个人的像素平均到中间空隙。深度中位数和 MAD 单独保存在区域统计中，不能把代表点理解为人体中心。
+
+可传入全图 `MaskView` 排除区域外像素，也可提供 `can_connect(Pixel, Pixel)` 附加邻接约束。`RgbdTracker` 默认使用 RGB 邻域颜色差（8 位 RGB 的 L2 距离）阻止明显不同颜色的相接表面合并，阈值 `max_rgb_neighbor_distance=120` 需要实测调整。噪声、衣服纹理可能分裂同一个人；同颜色、相接且深度接近的不同物体仍可能合并。这些几何区域不是人体实例分割。
+
+`associate_target()` 同时检查三维马氏距离和外观余弦距离，再比较最佳/次佳分数差。可疑的并列候选返回 `ambiguous`，不按数组顺序随意选择。颜色直方图仅统计区域支撑像素；同色衣服、光照变化和遮挡仍可能造成误关联。外部网络生成的非零有限特征向量也可直接传给这个关联算子；当前集成原型固定使用颜色直方图，不是深度学习版本。
+
+`Motion3D` 使用位置/速度恒速模型和每轴 2×2 协方差，按实际 `dt` 加入分段恒加速度过程噪声，采用 Joseph 形式更新测量协方差。创新距离过大时拒绝更新并保留原状态。`predict()` 为只读调用，超出 `max_prediction_s` 返回空值；预测次数不会延长可恢复时间。输出方差来自所设模型及噪声参数，不是经实车标定的身份置信度。
+
+## 5. 传统 RGB-D 跟踪原型
+
+```cpp
+#include <operator_lab/rgbd_tracker.hpp>
+RgbdTracker tracker;
+auto result = tracker.process(rgb_view, depth_view, intrinsics,
+    fixed_from_camera, FrameTimes{rgb_s, depth_s, pose_s, now_s}, selection_pixel);
+```
+
+第一帧通过 `selection_pixel` 选择区域，此后传 `std::nullopt`。流程为：
+
+```text
+已配准 RGB-D → 空间/颜色边界分区 → 区域外观与三维点
+                                             ↓
+按帧相机位姿 → 转换至固定坐标系 → 预测位置 + 外观关联
+                                             ↓
+                            运动创新检查 → 连续证据确认
+```
+
+- `fixed_from_camera` 由调用方按图像时刻提供，例如 `T_odom_from_camera`；原型不会估计里程计、执行 SLAM 或自动做位姿插值。
+- 每帧 RGB、深度和位姿时刻必须在同一个单调秒时钟中。过期、未来、乱序，以及 RGB/深度或位姿时差过大的输入返回 `rejected_frame`。时钟倒退会清空状态并抛异常。
+- `observed_position_m` 仅在关联到新观测时提供。`prediction` 是单独的推测结果，遮挡时不会伪装为新观测，`confirmed=false`。
+- 短时遮挡后需重新积累确认帧。超过预测时限后保持 `lost`，即使目标重新出现也要求显式重选；不会自动挑一个更近的区域重新开始。
+- 参考外观在选择时固定，不自动学习新外观，减少学习遮挡物的风险，但也限制对光照和外观变化的适应能力。
+- 完全没有新帧时，仍须每个控制周期调用 `poll(now_s)` 使确认到期。返回的确认结果仅代表跟踪证据，不代表可通行或允许发送速度。
+
+## 6. 文件回放与诊断
+
+在仓库根目录执行，输入与输出目录必须是新的或空目录：
+
+```sh
+make -C operators/cpp replay
+operators/cpp/build/rgbd_replay --generate-demo /tmp/rgbd-demo-input
+operators/cpp/build/rgbd_replay /tmp/rgbd-demo-input/calibration.txt \
+  /tmp/rgbd-demo-input/frames.txt /tmp/rgbd-demo-output
+```
+
+打开输出的 `index.html` 可逐帧查看 RGB、深度、目标框、投影后的预测位置和状态原因；`results.csv` 包含观测/预测三维位置及算法处理耗时。绿框为已确认，橙框为确认中，青色十字为预测。`processing_ms` 不包含文件读取、图像输出、相机延迟或控制延迟，不能当作整机实时性。
+
+生成器提供 **34 帧合成矩形物体**，包括不同颜色目标交叉、短时遮挡、长时丢失、相机平移以及第 30 帧重选。它不是人员视频，也不代表真实相机效果。程序保留空的观测字段表示没有可靠测量。
+
+接入自己录制的数据需要：
+
+1. RGB：二进制 P6 PPM，最大值 255；深度：二进制 P5 PGM，最大值 65535，16 位大端。深度 0 表示缺测。输入应已去畸变并完成 RGB-D 配准。
+2. `calibration.txt` 一行：`width height fx fy cx cy depth_scale_to_m`。示例 `80 48 70 70 40 24 0.001`。
+3. `frames.txt` 每帧一行，字段如下（路径相对清单目录，可使用双引号包含空格）：
+
+```text
+rgb_s depth_s pose_s now_s "rgb.ppm" "depth.pgm" r00 r01 r02 r10 r11 r12 r20 r21 r22 tx ty tz seed_u seed_v
+```
+
+旋转矩阵按行排列，平移单位米。`seed_u seed_v` 为该帧人工选择的目标像素，普通帧写 `-1 -1`。`now_s` 可来自录制的接收时刻，用于回放延迟和过期判断。未知机器人位姿时，只有相机确实固定才能使用单位变换；移动相机不能假装静止。
+
+PNM 读取器只支持这里声明的格式；其他格式需先在数据导出环节转换。未接入真实相机录制器、ROS bag、检测网络、避障或底盘控制。
+
+### 本轮补充验证（2026-10-27）
+
+空间连通性使用独立穷举邻接参考；测试还覆盖同深度分离区域、同深度相接的不同颜色区域、掩膜/ROI、不同帧率、遮挡恢复、预测失效、静默超时、相机平移补偿、外观与距离冲突，以及 PNM 字节序、二进制空白像素、截断文件、清单/标定错误和 BMP 像素顺序。发布前另跑 release 与地址/未定义行为 sanitizer。所有这些仍属于离线/合成验证。
+
+本轮在 macOS arm64 / Apple Clang 21 实测：356 项现有测试、4,863 项 C++ 检查（563 基础 + 4,282 空间/关联/运动/跟踪 + 18 回放 I/O）通过；`-O3 -DNDEBUG -Werror` 与 AddressSanitizer / UndefinedBehaviorSanitizer 构建通过。完整验证入口还检查了 34 帧端到端回放：短时遮挡不产生新观测，长时丢失不自动恢复，重选后重新确认，所有新观测的投影都落在生成输入中的红色目标支撑像素上。34 张 BMP 和 CSV/HTML 输出已生成。没有真实人员视频或实车验证。
