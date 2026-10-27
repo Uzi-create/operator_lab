@@ -4,7 +4,7 @@
 
 | 文件 | 能力 |
 |---|---|
-| `cpp/` | 纯 C++17 RGB-D 几何、空间/颜色分区、外观与运动关联、三维预测、时序确认及离线回放；[接口与验证](cpp/README.md)，无需 Python 运行时 |
+| `cpp/` | 纯 C++17 RGB-D 感知、三维关联/预测、激光栅格、跟随闭环、局部避障与离线回放；[感知](cpp/README.md)、[控制与避障](cpp/NAVIGATION.md)，无需 Python 运行时 |
 | `core.py` | 阈值、均值、自适应、引导滤波、CLAHE、形态学、边缘与距离场 |
 | `vision_ops.py` | 动态阈值、亮度校正、区域处理、模板匹配、卡尺、直线/圆拟合 |
 | `measurement_ops.py` | 周期边界平移配准、[相机画面位移估计](docs/SCENE_MOTION.md)、条纹宽度、径向圆边测量 |

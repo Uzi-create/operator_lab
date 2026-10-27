@@ -1,6 +1,6 @@
 # 纯 C++17 RGB-D 目标感知算子
 
-这里包含与 KCF、检测网络和 ROS 解耦的基础算子，以及一个可回放的传统 RGB-D 目标跟踪原型。算法和回放程序没有 Python、OpenCV、第三方库或动态库加载依赖。它不包含人员检测网络或运动控制。接口位于 `include/operator_lab/`，均为 `inline` / 模板，可从多个翻译单元安全包含。
+这里包含与 KCF、检测网络和 ROS 解耦的基础算子、可回放的传统 RGB-D 目标跟踪原型，以及跟随闭环和激光避障组件。算法和回放程序没有 Python、OpenCV、第三方库或动态库加载依赖。它不包含人员检测网络或底盘驱动。接口位于 `include/operator_lab/`，均为 `inline` / 模板，可从多个翻译单元安全包含。激光、制动和局部规划接口详见 [避障与控制说明](NAVIGATION.md)。
 
 ## 构建与验证
 
@@ -9,6 +9,7 @@
 ```sh
 make -C operators/cpp test demo
 make -C operators/cpp replay
+make -C operators/cpp navigation
 make -C operators/cpp BUILD_DIR=build-sanitized \
   CXXFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' test demo
 ```

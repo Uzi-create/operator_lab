@@ -49,6 +49,7 @@ def main():
             ('test_rgbd', ['operators/cpp/tests/test_rgbd.cpp', 'operators/cpp/tests/header_link.cpp']),
             ('test_tracking', ['operators/cpp/tests/test_tracking.cpp']),
             ('test_replay_io', ['operators/cpp/tests/test_replay_io.cpp']),
+            ('test_navigation', ['operators/cpp/tests/test_navigation.cpp']),
         ]:
             subprocess.run([str(compile_cpp(name, sources))], check=True, env=environment)
         replay = compile_cpp('rgbd_replay', ['operators/cpp/examples/rgbd_replay.cpp'])
@@ -81,6 +82,39 @@ def main():
         if not (outputs/'index.html').is_file():
             raise RuntimeError('missing replay viewer')
         print('PASS: 34-frame synthetic replay, target support, occlusion, reselection and output checks')
+        navigation = compile_cpp('navigation_replay', ['operators/cpp/examples/navigation_replay.cpp'])
+        nav_output = Path(directory)/'navigation'
+        subprocess.run([str(navigation), str(nav_output)], check=True, env=environment)
+        import math
+        import xml.etree.ElementTree as ET
+        scenes = {'clear_follow':100, 'crossing_person':110, 'static_detour':150,
+                  'blocked_passage':70, 'sensor_dropout':100, 'target_loss':100}
+        for name, count in scenes.items():
+            folder = nav_output/name
+            with (folder/'results.csv').open() as stream:
+                control_rows = list(csv.DictReader(stream))
+            if len(control_rows) != count:
+                raise RuntimeError('navigation frame count mismatch: ' + name)
+            summary = dict(line.split('=',1) for line in (folder/'summary.txt').read_text().splitlines())
+            if float(summary['minimum_physical_clearance_m']) <= 0:
+                raise RuntimeError('synthetic collision: ' + name)
+            for i, row in enumerate(control_rows):
+                command = [float(row[k]) for k in ('cmd_x_mps','cmd_y_mps','cmd_yaw_rps')]
+                if not all(math.isfinite(v) for v in command) or math.hypot(*command[:2]) > .30000001 or abs(command[1]) > .25000001 or abs(command[2]) > .80000001:
+                    raise RuntimeError('invalid command limits: ' + name)
+                if row['allowed'] == '0' and any(abs(v) > 1e-10 for v in command):
+                    raise RuntimeError('nonzero inhibited command: ' + name)
+                if name in ('sensor_dropout','target_loss') and 2 <= float(row['time_s']) < 3 and any(abs(v) > 1e-10 for v in command):
+                    raise RuntimeError('sensor/target loss failed to stop: ' + name)
+                if name == 'blocked_passage' and row['allowed'] != '0':
+                    raise RuntimeError('blocked passage incorrectly released motion')
+                ET.parse(folder/f'{i:04d}.svg')
+                tokens = (folder/f'{i:04d}.scan').read_text().split()
+                if len(tokens) != 729 or tokens[0] != 'OPERATOR_LASER_V1' or tokens[1] != '721' or abs(float(tokens[6])-float(row['time_s'])) > 1e-8:
+                    raise RuntimeError('incomplete raw scan record: ' + name)
+            if not (folder/'parameters.txt').is_file() or not (folder/'index.html').is_file():
+                raise RuntimeError('incomplete navigation diagnostics: ' + name)
+        print('PASS: 6 closed-loop synthetic navigation scenarios, 630 raw scans/frames and output checks')
     if args.demos:
         from projects.tools.smoke_outputs import run_demos
         run_demos(args.output)
