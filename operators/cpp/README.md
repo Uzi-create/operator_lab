@@ -29,7 +29,8 @@ c++ -std=c++17 -O2 -Ioperators/cpp/include \
 `Makefile` 的 `-Iinclude` 和 `-std=c++17` 只对构建命令生效，编辑器也需要知道这些参数，否则可能把 `operator_lab/...` 报成找不到文件，并产生大量后续错误。
 
 - clangd：本目录的 `compile_flags.txt` 提供 C++17、相对本目录的 `include/` 搜索路径与警告选项；不依赖本机绝对路径。已有 `compile_commands.json` 时，编辑器应使用其实际构建参数。
-- VS Code Microsoft C/C++ 扩展：打开 **operator_lab 仓库根目录**，仓库 `.vscode/c_cpp_properties.json` 配置 C++17 与头文件目录；编译器由扩展自动发现。
+- VS Code Microsoft C/C++ 扩展：打开 **operator_lab 仓库根目录**时，使用仓库 `.vscode/c_cpp_properties.json`；直接打开 **operators/cpp 子目录**时，使用该子目录自己的 `.vscode/c_cpp_properties.json`。两种打开方式均配置 C++17，并使用各自工作区对应的头文件路径。
+- 子目录配置中的 `Mac` 项明确使用 `/usr/bin/clang++` 与 `macos-clang-arm64`，匹配本轮验证的 Apple Silicon Mac；Intel Mac 应改用 `macos-clang-x64`。`Linux` / `Win32` 项由扩展自动发现编译器，未在对应系统验证。VS Code 不会自动继承工作区根目录之外的父目录配置，Microsoft C/C++ 扩展也不直接读取 clangd 的 `compile_flags.txt`。
 - 修改配置后仍显示旧诊断时，重启语言服务器或重载编辑器窗口。这些配置只服务于本库，不会安装 ROS 或为机器人供应商工程补齐 catkin 依赖。
 
 可在仓库根目录用 `clangd --check=operators/cpp/tests/test_navigation.cpp` 检查编辑器解析结果；实际编译和测试仍用上面的 `make` 命令。
