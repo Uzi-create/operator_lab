@@ -24,6 +24,16 @@ c++ -std=c++17 -O2 -Ioperators/cpp/include \
 
 已有的 `python verify.py --sanitizers` 开发验证入口也会编译并执行新 C++ 测试；这不引入 Python 运行时接口。所有实际算法可以只使用 C++。Windows 可以用支持 C++17 的编译器直接构建；本轮未在 Windows 或 Linux 上运行，不宣称跨平台实测完成。
 
+## 编辑器头文件与 C++17 配置
+
+`Makefile` 的 `-Iinclude` 和 `-std=c++17` 只对构建命令生效，编辑器也需要知道这些参数，否则可能把 `operator_lab/...` 报成找不到文件，并产生大量后续错误。
+
+- clangd：本目录的 `compile_flags.txt` 提供 C++17、相对本目录的 `include/` 搜索路径与警告选项；不依赖本机绝对路径。已有 `compile_commands.json` 时，编辑器应使用其实际构建参数。
+- VS Code Microsoft C/C++ 扩展：打开 **operator_lab 仓库根目录**，仓库 `.vscode/c_cpp_properties.json` 配置 C++17 与头文件目录；编译器由扩展自动发现。
+- 修改配置后仍显示旧诊断时，重启语言服务器或重载编辑器窗口。这些配置只服务于本库，不会安装 ROS 或为机器人供应商工程补齐 catkin 依赖。
+
+可在仓库根目录用 `clangd --check=operators/cpp/tests/test_navigation.cpp` 检查编辑器解析结果；实际编译和测试仍用上面的 `make` 命令。
+
 ## 1. 深度视图、反投影与坐标转换
 
 ```cpp
