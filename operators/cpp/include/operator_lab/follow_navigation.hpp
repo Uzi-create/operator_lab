@@ -55,7 +55,7 @@ public:
         auto local_config=config_.avoidance;local_config.trajectory.control_dt_s=control_dt;
         const double age=std::max(0.,now_s-laser.first_stamp_s);
         NavigationResult out;out.desired=follow.velocity;
-        const auto braking=check_trajectory(grid,robot_,limits_,measured.velocity,{},local_config.trajectory,age,true);
+        const auto braking=check_trajectory(grid,robot_,limits_,measured.velocity,{},local_config.trajectory,age,true,false);
         out.braking_path_clear=braking.clear;
         if(!braking.clear){auto stop=halt(braking.collision==CollisionState::unknown?"braking_space_unknown":"braking_path_obstructed");return stop;}
         const double range=std::hypot(target.point_base.x,target.point_base.y);
@@ -74,7 +74,7 @@ public:
             out.reason="waiting_clear_scans";return out;
         }
         // Recheck the selected candidate as the final command stage.
-        const auto final_check=check_trajectory(grid,robot_,limits_,measured.velocity,out.plan.command,local_config.trajectory,age);
+        const auto final_check=check_trajectory(grid,robot_,limits_,measured.velocity,out.plan.command,local_config.trajectory,age,false,false);
         if(!final_check.clear)return halt("final_collision_check_failed");
         out.command=out.plan.command;out.moving_allowed=true;out.reason=out.plan.reason;return out;
     }

@@ -1,0 +1,32 @@
+{
+  "baseline_revision": "253782d360b8a6a44e4c948a2ba1c68577274c99",
+  "current_revision": "253782d360b8a6a44e4c948a2ba1c68577274c99",
+  "current_tree_dirty": true,
+  "current_include_sha256": "bf511a39a934827d02fe33e54bfebb52f672fc073ecdbbffeecb71d37a16819b",
+  "benchmark_sha256": "a767d416c002880082138231eb0a53b29c27498faa8790b32458f6660889bc29",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "flags": [
+    "-std=c++17",
+    "-O3",
+    "-DNDEBUG",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Werror"
+  ],
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "architecture": "arm64",
+  "rounds": 3,
+  "iterations_per_case_per_round": 101,
+  "warmup_calls": 5,
+  "clock": "std::chrono::steady_clock",
+  "allocation_scope": "replaceable C++ new calls and cumulative requested bytes; not peak live memory or RSS",
+  "limitations": "Synthetic CPU-only data; no detector inference, camera I/O, ROS, robot, NX power-mode or real-time deadline validation.",
+  "machdep.cpu.brand_string": "Apple M4",
+  "hw.memsize": "17179869184",
+  "hw.logicalcpu": "10",
+  "baseline_include_sha256": "d33884860b805e9f48a513a7749af29fd62e8579bedcf6f34ec385c3077b9865",
+  "differential_exact_match": true,
+  "all_benchmark_digests_match": true,
+  "hardware_fields_source": "Independent read-only sysctl query in this audit session; benchmark sandbox query unavailable."
+}

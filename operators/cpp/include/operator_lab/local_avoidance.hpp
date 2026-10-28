@@ -68,7 +68,7 @@ struct LocalPlan {
 namespace avoidance_detail {
 inline std::vector<double> samples(double low,double high,std::size_t count,double desired){
     if(low>high)throw std::invalid_argument("empty velocity sampling window");
-    std::vector<double> out;
+    std::vector<double> out;out.reserve(count+2);
     for(std::size_t i=0;i<count;++i)out.push_back(low+(high-low)*static_cast<double>(i)/static_cast<double>(count-1));
     out.push_back(std::clamp(desired,low,high));if(low<=0&&high>=0)out.push_back(0);
     std::sort(out.begin(),out.end());out.erase(std::unique(out.begin(),out.end()),out.end());return out;
@@ -92,7 +92,7 @@ inline LocalPlan plan_local_motion(const LocalGrid& grid,const std::vector<Point
         std::min(limits.max_lateral,current.y+dv),config.lateral_samples,desired.y):std::vector<double>{0};
     const auto ws=avoidance_detail::samples(std::max(-limits.max_yaw,current.yaw-dw),
         std::min(limits.max_yaw,current.yaw+dw),config.yaw_samples,desired.yaw);
-    std::vector<Velocity2> candidates;
+    std::vector<Velocity2> candidates;candidates.reserve(xs.size()*ys.size()*ws.size()+2);
     for(double x:xs)for(double y:ys)for(double w:ws)candidates.push_back({x,y,w});
     const double goal_range=std::hypot(out.goal.point.x,out.goal.point.y);
     if(out.goal.detour&&goal_range>0){
@@ -106,15 +106,27 @@ inline LocalPlan plan_local_motion(const LocalGrid& grid,const std::vector<Point
         if(command.x<0||speed(command)>limits.max_linear+1e-8||std::abs(command.y)>limits.max_lateral+1e-8||
            std::hypot(command.x-current.x,command.y-current.y)>dv+1e-8||std::abs(command.yaw-current.yaw)>dw+1e-8)continue;
         ++out.evaluated;
-        auto trajectory=check_trajectory(grid,robot,limits,current,command,config.trajectory,scan_age_s);
+        auto trajectory=check_trajectory(grid,robot,limits,current,command,config.trajectory,scan_age_s,false,false);
         if(!trajectory.clear){++out.rejected;continue;}
         double clearance=2.;
-        for(auto point:obstacle_points)clearance=std::min(clearance,point_clearance(point,trajectory.end_pose,robot));
+        const auto base_from_endpoint=inverse(trajectory.end_pose);
+        const double c=std::cos(base_from_endpoint.yaw),s=std::sin(base_from_endpoint.yaw);
+        for(auto point:obstacle_points){
+            if(!finite(point))throw std::invalid_argument("nonfinite planar transform");
+            const Point2 p{c*point.x-s*point.y+base_from_endpoint.x,s*point.x+c*point.y+base_from_endpoint.y};
+            if(!finite(p))throw std::overflow_error("planar transform overflow");
+            const double dx=std::max({-robot.back-robot.margin-p.x,0.,p.x-robot.front-robot.margin});
+            const double dy=std::max(0.,std::abs(p.y)-robot.half_width-robot.margin);
+            if(dx<clearance&&dy<clearance)clearance=std::min(clearance,std::hypot(dx,dy));
+        }
         const double velocity_error=std::hypot(command.x-desired.x,command.y-desired.y)/limits.max_linear;
         const double score=4*distance({trajectory.end_pose.x,trajectory.end_pose.y},out.goal.point)+
             (out.goal.detour?.25:1.)*velocity_error+.1*std::abs(command.yaw-desired.yaw)+config.clearance_weight/(clearance+.1);
         if(score<out.score){out.score=score;out.found=true;out.command=command;out.trajectory=std::move(trajectory);}
     }
+    // Preserve the public winning trajectory while avoiding path allocations for
+    // every rejected or lower-scoring candidate. Rerun identical collision samples.
+    if(out.found)out.trajectory=check_trajectory(grid,robot,limits,current,out.command,config.trajectory,scan_age_s);
     out.reason=out.found?(out.goal.detour?"safe_local_detour":"safe_follow_command"):"no_safe_velocity";
     return out;
 }

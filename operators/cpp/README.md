@@ -35,6 +35,10 @@ c++ -std=c++17 -O2 -Ioperators/cpp/include \
 
 可在仓库根目录用 `clangd --check=operators/cpp/tests/test_navigation.cpp` 检查编辑器解析结果；实际编译和测试仍用上面的 `make` 命令。
 
+## 性能基准与优化
+
+本轮测量、原始 CSV、分配开销和验证边界见 [PERFORMANCE.md](PERFORMANCE.md)。纯 C++ 单版本基准可运行 `make -C operators/cpp benchmark`；可用 Python 标准库脚本做 Git 历史版本与当前代码的串行交替 A/B 对比。结果是 Mac 上的合成 CPU 数据，不能当作 Xavier NX 或实机跟随帧率。
+
 ## 1. 深度视图、反投影与坐标转换
 
 ```cpp
@@ -56,6 +60,7 @@ if (!samples.empty()) {
 - `DepthView<T>` 支持 `uint16_t`、`float`、`double`，显式指定原始数值到米的比例。步长单位为**元素数**而非字节；OpenCV `Mat::step` 若用于此处，应先除以 `sizeof(T)` 并确认能整除。调用方负责类型、缓冲区实际长度与生命周期。
 - 尺寸、可访问长度、步长、ROI、参数和刚体旋转在 C++ 入口校验。无效参数抛 `std::invalid_argument`，越界读取抛 `std::out_of_range`，不可表示的几何结果抛 `std::overflow_error`。
 - 输入像素应已去畸变，内参必须匹配当前深度图。相同分辨率不代表 RGB 与深度已经配准；彩色目标框必须先映射到深度图坐标。
+- `DepthView::raw_at()` 读取经过边界检查的原始编码，`scale_to_m()` 返回显式米制缩放；`at_m()` 的无效值策略不变。
 - 光学坐标系为 X 向右、Y 向下、Z 向前；深度指光轴 Z，而不是沿射线的欧氏距离。三维输出为米。
 - 0、负数、NaN、Inf、缩放溢出和范围外样本被跳过。深度范围为 `min_depth_m < z <= max_depth_m`。缺测不表示可通行。
 - `depth_to_points()` 保留原始像素索引，可用 `sampling_step` 采样；它不会缩放图像或修改内参。空点云是有效结果。

@@ -1,0 +1,15 @@
+Command: operator_lab_env/bin/python verify.py --sanitizers
+Exit code: 0
+Validation: synthetic/source/macOS only; no hardware.
+
+Ran 356 tests in 6.437s
+OK
+PASS: 563 C++ RGB-D checks (geometry, depth bands, temporal evidence)
+PASS: 4282 C++ spatial/association/motion/tracker checks
+PASS: 18 C++ replay I/O checks
+PASS: 594 C++ laser/control/collision/local-avoidance checks
+PASS: 304970 performance-regression checks (exact statistics, workspace, body marking, path storage)
+PASS: 6 synthetic closed-loop scenarios. Viewer: "/var/folders/_n/s40_34zs3k79c5tz2jd2xf7h0000gn/T/operator-rgbd-check-ldbp7jul/navigation/index.html"
+PASS: 34-frame synthetic replay, target support, occlusion, reselection and output checks
+PASS: 6 closed-loop synthetic navigation scenarios, 630 raw scans/frames and output checks
+PASS: build, operator and project tests, native assertions and C++ RGB-D checks and sanitizers

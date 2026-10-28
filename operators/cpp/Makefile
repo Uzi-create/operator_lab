@@ -6,8 +6,8 @@ BUILD_DIR ?= build
 BASE_FLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Iinclude
 HEADERS = $(wildcard include/operator_lab/*.hpp)
 
-.PHONY: all test demo replay navigation clean
-all: $(BUILD_DIR)/test_rgbd $(BUILD_DIR)/test_tracking $(BUILD_DIR)/test_replay_io $(BUILD_DIR)/test_navigation $(BUILD_DIR)/depth_target_demo $(BUILD_DIR)/rgbd_replay $(BUILD_DIR)/navigation_replay
+.PHONY: all test demo replay navigation benchmark clean
+all: $(BUILD_DIR)/test_performance $(BUILD_DIR)/test_rgbd $(BUILD_DIR)/test_tracking $(BUILD_DIR)/test_replay_io $(BUILD_DIR)/test_navigation $(BUILD_DIR)/depth_target_demo $(BUILD_DIR)/rgbd_replay $(BUILD_DIR)/navigation_replay
 
 $(BUILD_DIR):
 	mkdir -p "$@"
@@ -33,11 +33,21 @@ $(BUILD_DIR)/test_navigation: tests/test_navigation.cpp $(HEADERS) | $(BUILD_DIR
 $(BUILD_DIR)/navigation_replay: examples/navigation_replay.cpp $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(BASE_FLAGS) $(CXXFLAGS) examples/navigation_replay.cpp $(LDFLAGS) -o "$@"
 
-test: $(BUILD_DIR)/test_rgbd $(BUILD_DIR)/test_tracking $(BUILD_DIR)/test_replay_io $(BUILD_DIR)/test_navigation
+$(BUILD_DIR)/test_performance: tests/test_performance.cpp $(HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(BASE_FLAGS) $(CXXFLAGS) tests/test_performance.cpp $(LDFLAGS) -o "$@"
+
+$(BUILD_DIR)/operator_benchmark: benchmarks/benchmark.cpp $(HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(BASE_FLAGS) $(CXXFLAGS) -O3 -DNDEBUG benchmarks/benchmark.cpp $(LDFLAGS) -o "$@"
+
+benchmark: $(BUILD_DIR)/operator_benchmark
+	"$(BUILD_DIR)/operator_benchmark"
+
+test: $(BUILD_DIR)/test_performance $(BUILD_DIR)/test_rgbd $(BUILD_DIR)/test_tracking $(BUILD_DIR)/test_replay_io $(BUILD_DIR)/test_navigation
 	"$(BUILD_DIR)/test_rgbd"
 	"$(BUILD_DIR)/test_tracking"
 	"$(BUILD_DIR)/test_replay_io"
 	"$(BUILD_DIR)/test_navigation"
+	"$(BUILD_DIR)/test_performance"
 
 demo: $(BUILD_DIR)/depth_target_demo
 	"$(BUILD_DIR)/depth_target_demo"
@@ -47,4 +57,4 @@ replay: $(BUILD_DIR)/rgbd_replay
 navigation: $(BUILD_DIR)/navigation_replay
 
 clean:
-	rm -f "$(BUILD_DIR)/test_rgbd" "$(BUILD_DIR)/test_tracking" "$(BUILD_DIR)/test_replay_io" "$(BUILD_DIR)/test_navigation" "$(BUILD_DIR)/depth_target_demo" "$(BUILD_DIR)/rgbd_replay" "$(BUILD_DIR)/navigation_replay"
+	rm -f "$(BUILD_DIR)/test_performance" "$(BUILD_DIR)/operator_benchmark" "$(BUILD_DIR)/test_rgbd" "$(BUILD_DIR)/test_tracking" "$(BUILD_DIR)/test_replay_io" "$(BUILD_DIR)/test_navigation" "$(BUILD_DIR)/depth_target_demo" "$(BUILD_DIR)/rgbd_replay" "$(BUILD_DIR)/navigation_replay"

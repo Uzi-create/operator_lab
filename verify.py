@@ -50,6 +50,7 @@ def main():
             ('test_tracking', ['operators/cpp/tests/test_tracking.cpp']),
             ('test_replay_io', ['operators/cpp/tests/test_replay_io.cpp']),
             ('test_navigation', ['operators/cpp/tests/test_navigation.cpp']),
+            ('test_performance', ['operators/cpp/tests/test_performance.cpp']),
         ]:
             subprocess.run([str(compile_cpp(name, sources))], check=True, env=environment)
         replay = compile_cpp('rgbd_replay', ['operators/cpp/examples/rgbd_replay.cpp'])

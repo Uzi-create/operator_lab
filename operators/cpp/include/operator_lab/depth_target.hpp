@@ -114,8 +114,9 @@ inline DepthTargetResult estimate_depth_target(const DepthView<T>& depth, const 
     }
     const double median = detail::sorted_median(z);
     for (double& value : z) value = std::abs(value - median);
-    std::sort(z.begin(), z.end());
-    const double mad = detail::sorted_median(z);
+    auto middle = z.begin() + static_cast<std::ptrdiff_t>(z.size() / 2);
+    std::nth_element(z.begin(), middle, z.end());
+    const double mad = z.size() % 2 ? *middle : *std::max_element(z.begin(), middle) / 2 + *middle / 2;
     if (mad > config.max_mad_m) { result.state = DepthState::excessive_spread; return result; }
     result.point_m = backproject(k, mean_u, mean_v, median);
     result.depth_m = median; result.mad_m = mad;

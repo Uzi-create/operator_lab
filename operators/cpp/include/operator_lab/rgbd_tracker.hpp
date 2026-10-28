@@ -103,7 +103,7 @@ public:
             return distance_squared<=config_.max_rgb_neighbor_distance*config_.max_rgb_neighbor_distance;
         };
         const auto regions = extract_depth_regions(depth, k, {0,0,depth.width(),depth.height()},
-                                                   config_.regions, candidate_mask,color_connected);
+                                                   config_.regions, candidate_mask,color_connected,&region_workspace_);
         std::vector<TrackCandidate> candidates;
         candidates.reserve(regions.size());
         for (const auto& region : regions)
@@ -143,6 +143,7 @@ public:
         return observed(regions,index,candidates[index].position_m,evidence,time.depth_stamp_s);
     }
 private:
+    DepthRegionWorkspace region_workspace_;
     TrackerConfig config_;
     Motion3D motion_;
     TargetEvidence evidence_;

@@ -104,6 +104,11 @@ public:
     }
     std::size_t width() const { return width_; }
     std::size_t height() const { return height_; }
+    double scale_to_m() const { return scale_; }
+    T raw_at(std::size_t u, std::size_t v) const {
+        if (u >= width_ || v >= height_) throw std::out_of_range("depth pixel outside image");
+        return data_[v * stride_ + u];
+    }
     double at_m(std::size_t u, std::size_t v) const {
         if (u >= width_ || v >= height_) throw std::out_of_range("depth pixel outside image");
         const double z = static_cast<double>(data_[v * stride_ + u]) * scale_;

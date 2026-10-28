@@ -81,6 +81,20 @@ inline void validate(const AssociationConfig& c) {
         throw std::invalid_argument("invalid association scale");
 }
 namespace association_detail {
+inline bool unit_descriptor_into(const std::vector<double>& descriptor,std::vector<double>& unit) {
+    double scale = 0;
+    for (double value : descriptor) {
+        if (!std::isfinite(value)) return false;
+        scale = std::max(scale, std::abs(value));
+    }
+    if (scale == 0) return false;
+    unit.assign(descriptor.begin(),descriptor.end());
+    double norm = 0;
+    for (double& value : unit) { value /= scale; norm += value * value; }
+    norm = std::sqrt(norm);
+    for (double& value : unit) value /= norm;
+    return true;
+}
 inline std::optional<std::vector<double>> unit_descriptor(const std::vector<double>& descriptor) {
     double scale = 0;
     for (double value : descriptor) {
@@ -110,15 +124,10 @@ inline AssociationResult associate_target(const std::vector<TrackCandidate>& can
             throw std::invalid_argument("invalid predicted variance");
     AssociationResult result;
     std::optional<std::size_t> best_index;
+    std::vector<double> appearance;
     for (std::size_t index = 0; index < candidates.size(); ++index) {
         const auto& candidate = candidates[index];
         if (!finite(candidate.position_m) || candidate.appearance.size() != reference->size()) continue;
-        const auto appearance = association_detail::unit_descriptor(candidate.appearance);
-        if (!appearance) continue;
-        double dot = 0;
-        for (std::size_t j = 0; j < reference->size(); ++j) dot += (*reference)[j] * (*appearance)[j];
-        const double appearance_distance = 1 - std::clamp(dot, -1., 1.);
-        if (appearance_distance > config.max_appearance_distance) continue;
         const std::array<double,3> delta{candidate.position_m.x - query.predicted_position_m.x,
             candidate.position_m.y - query.predicted_position_m.y,
             candidate.position_m.z - query.predicted_position_m.z};
@@ -129,6 +138,13 @@ inline AssociationResult associate_target(const std::vector<TrackCandidate>& can
             geometry_distance += d * d;
         }
         if (!std::isfinite(geometry_distance) || geometry_distance > config.max_mahalanobis_squared) continue;
+        // Gate impossible positions first, then reuse one descriptor buffer.
+        // Keep the original normalization passes and stored rounding behavior.
+        if (!association_detail::unit_descriptor_into(candidate.appearance,appearance)) continue;
+        double dot = 0;
+        for (std::size_t j = 0; j < reference->size(); ++j) dot += (*reference)[j] * appearance[j];
+        const double appearance_distance = 1 - std::clamp(dot, -1., 1.);
+        if (appearance_distance > config.max_appearance_distance) continue;
         const double score = (config.geometry_weight * geometry_distance / config.max_mahalanobis_squared +
             config.appearance_weight * appearance_distance / config.max_appearance_distance) /
             (config.geometry_weight + config.appearance_weight);

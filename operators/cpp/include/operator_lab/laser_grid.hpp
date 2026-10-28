@@ -6,21 +6,27 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace operator_lab::navigation {
 enum class Cell : std::uint8_t { unknown,free,occupied };
 struct GridConfig {double xmin=-3,ymin=-3,xmax=3,ymax=3,resolution=.05;};
+namespace grid_detail {
+inline std::pair<std::size_t,std::size_t> dimensions(GridConfig config){
+    for(double value:{config.xmin,config.ymin,config.xmax,config.ymax,config.resolution})
+        if(!std::isfinite(value))throw std::invalid_argument("nonfinite grid configuration");
+    if(config.resolution<.01||config.resolution>1||config.xmax<=config.xmin||config.ymax<=config.ymin)
+        throw std::invalid_argument("invalid local grid extent or resolution");
+    const double w=std::ceil((config.xmax-config.xmin)/config.resolution);
+    const double h=std::ceil((config.ymax-config.ymin)/config.resolution);
+    if(w>2048||h>2048||w*h>4000000)throw std::invalid_argument("local grid exceeds resource limit");
+    return {static_cast<std::size_t>(w),static_cast<std::size_t>(h)};
+}
+}
 class LocalGrid {
 public:
     explicit LocalGrid(GridConfig config={}):config_(config){
-        for(double value:{config.xmin,config.ymin,config.xmax,config.ymax,config.resolution})
-            if(!std::isfinite(value))throw std::invalid_argument("nonfinite grid configuration");
-        if(config.resolution<.01||config.resolution>1||config.xmax<=config.xmin||config.ymax<=config.ymin)
-            throw std::invalid_argument("invalid local grid extent or resolution");
-        const double w=std::ceil((config.xmax-config.xmin)/config.resolution);
-        const double h=std::ceil((config.ymax-config.ymin)/config.resolution);
-        if(w>2048||h>2048||w*h>4000000)throw std::invalid_argument("local grid exceeds resource limit");
-        width_=static_cast<std::size_t>(w);height_=static_cast<std::size_t>(h);
+        const auto dimensions=grid_detail::dimensions(config);width_=dimensions.first;height_=dimensions.second;
         cells_.assign(width_*height_,Cell::unknown);
     }
     const GridConfig& config()const{return config_;}
@@ -38,6 +44,7 @@ public:
     }
     Cell at(std::size_t index)const{return cells_.at(index);}
     Cell at(Point2 point)const{const auto i=index(point);return i?cells_[*i]:Cell::unknown;}
+    void mark_free_at(std::size_t index){auto& cell=cells_.at(index);if(cell!=Cell::occupied)cell=Cell::free;}
     void mark_free(Point2 point){if(auto i=index(point);i&&cells_[*i]!=Cell::occupied)cells_[*i]=Cell::free;}
     void mark_occupied(Point2 point){if(auto i=index(point))cells_[*i]=Cell::occupied;}
     void fill(Cell value){std::fill(cells_.begin(),cells_.end(),value);}
@@ -77,7 +84,7 @@ struct LaserObservation {
     std::string reason;
 };
 inline void validate(const LaserConfig& c){
-    LocalGrid check(c.grid);(void)check;
+    (void)grid_detail::dimensions(c.grid);
     for(double value:{c.max_age_s,c.max_ray_m,c.min_usable_fraction,c.max_undeskewed_duration_s})
         if(!std::isfinite(value)||value<0)throw std::invalid_argument("invalid laser configuration");
     if(c.max_age_s<=0||c.max_ray_m<=0||c.max_ray_m>30||c.min_usable_fraction>1||!c.min_usable_rays)
@@ -102,6 +109,7 @@ inline LaserObservation laser_to_grid(const LaserScanView& scan,Pose2 base_from_
         out.reason="deskew_required";return out;
     }
     LocalGrid grid(config.grid);
+    out.obstacle_points.reserve(scan.count);
     // Free-space tracing samples at <=1/3 cell. Unvisited cells remain UNKNOWN.
     // Occupied endpoints always win over free rays, including later scan beams.
     for(std::size_t i=0;i<scan.count;++i){
@@ -119,7 +127,10 @@ inline LaserObservation laser_to_grid(const LaserScanView& scan,Pose2 base_from_
         for(std::size_t step=0;step<steps;++step){
             const double fraction=static_cast<double>(step)/static_cast<double>(steps);
             if(fraction*range<scan.range_min)continue; // Do not clear the sensor blind zone.
-            grid.mark_free({origin.x+(endpoint.x-origin.x)*fraction,origin.y+(endpoint.y-origin.y)*fraction});
+            const auto index=grid.index({origin.x+(endpoint.x-origin.x)*fraction,origin.y+(endpoint.y-origin.y)*fraction});
+            // A straight ray from an in-map origin cannot re-enter this convex map.
+            if(!index)break;
+            grid.mark_free_at(*index);
         }
         if(hit){grid.mark_occupied(endpoint);out.obstacle_points.push_back(endpoint);++out.obstacle_returns;}
         else grid.mark_free(endpoint);
